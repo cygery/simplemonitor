@@ -8,49 +8,51 @@ import sys
 try:
     import win32api
     win32_available = True
-except:
+except ImportError:
     win32_available = False
 
 from .monitor import Monitor
+
+
+def _size_string_to_bytes(s):
+    if s.endswith("G"):
+        gigs = int(s[:-1])
+        bytes = gigs * (1024 ** 3)
+    elif s.endswith("M"):
+        megs = int(s[:-1])
+        bytes = megs * (1024 ** 2)
+    elif s.endswith("K"):
+        kilos = int(s[:-1])
+        bytes = kilos * 1024
+    else:
+        return int(s)
+    return bytes
+
+
+def _bytes_to_size_string(b):
+    """Convert a number in bytes to a sensible unit."""
+
+    kb = 1024
+    mb = kb * 1024
+    gb = mb * 1024
+    tb = gb * 1024
+
+    if b > tb:
+        return "%0.2fTiB" % (b / float(tb))
+    elif b > gb:
+        return "%0.2fGiB" % (b / float(gb))
+    elif b > mb:
+        return "%0.2fMiB" % (b / float(mb))
+    elif b > kb:
+        return "%0.2fKiB" % (b / float(kb))
+    else:
+        return str(b)
 
 
 class MonitorDiskSpace(Monitor):
     """Make sure we have enough disk space."""
 
     type = "diskspace"
-
-    def _size_string_to_bytes(self, s):
-        if s.endswith("G"):
-            gigs = int(s[:-1])
-            bytes = gigs * (1024 ** 3)
-        elif s.endswith("M"):
-            megs = int(s[:-1])
-            bytes = megs * (1024 ** 2)
-        elif s.endswith("K"):
-            kilos = int(s[:-1])
-            bytes = kilos * 1024
-        else:
-            return int(s)
-        return bytes
-
-    def _bytes_to_size_string(self, b):
-        """Convert a number in bytes to a sensible unit."""
-
-        kb = 1024
-        mb = kb * 1024
-        gb = mb * 1024
-        tb = gb * 1024
-
-        if b > tb:
-            return "%0.2fTiB" % (b / float(tb))
-        elif b > gb:
-            return "%0.2fGiB" % (b / float(gb))
-        elif b > mb:
-            return "%0.2fMiB" % (b / float(mb))
-        elif b > kb:
-            return "%0.2fKiB" % (b / float(kb))
-        else:
-            return str(b)
 
     def __init__(self, name, config_options):
         Monitor.__init__(self, name, config_options)
@@ -63,10 +65,10 @@ class MonitorDiskSpace(Monitor):
         try:
             partition = config_options["partition"]
             limit = config_options["limit"]
-        except:
+        except Exception:
             raise RuntimeError("Required configuration fields missing")
         self.partition = partition
-        self.limit = self._size_string_to_bytes(limit)
+        self.limit = _size_string_to_bytes(limit)
 
     def run_test(self):
         try:
@@ -83,15 +85,15 @@ class MonitorDiskSpace(Monitor):
             return False
 
         if space <= self.limit:
-            self.record_fail("%s free (%d%%)" % (self._bytes_to_size_string(space), percent))
+            self.record_fail("%s free (%d%%)" % (_bytes_to_size_string(space), percent))
             return False
         else:
-            self.record_success("%s free (%d%%)" % (self._bytes_to_size_string(space), percent))
+            self.record_success("%s free (%d%%)" % (_bytes_to_size_string(space), percent))
             return True
 
     def describe(self):
         """Explains what we do."""
-        return "Checking for at least %s free space on %s" % (self._bytes_to_size_string(self.limit), self.partition)
+        return "Checking for at least %s free space on %s" % (_bytes_to_size_string(self.limit), self.partition)
 
     def get_params(self):
         return (self.limit, self.partition)
@@ -105,58 +107,25 @@ class MonitorFileStat(Monitor):
     minsize = -1
     filename = ""
 
-    def _size_string_to_bytes(self, s):
-        if s.endswith("G"):
-            gigs = int(s[:-1])
-            bytes = gigs * (1024 ** 3)
-        elif s.endswith("M"):
-            megs = int(s[:-1])
-            bytes = megs * (1024 ** 2)
-        elif s.endswith("K"):
-            kilos = int(s[:-1])
-            bytes = kilos * 1024
-        else:
-            return int(s)
-        return bytes
-
-    def _bytes_to_size_string(self, b):
-        """Convert a number in bytes to a sensible unit."""
-
-        kb = 1024
-        mb = kb * 1024
-        gb = mb * 1024
-        tb = gb * 1024
-
-        if b > tb:
-            return "%0.2fTiB" % (b / float(tb))
-        elif b > gb:
-            return "%0.2fGiB" % (b / float(gb))
-        elif b > mb:
-            return "%0.2fMiB" % (b / float(mb))
-        elif b > kb:
-            return "%0.2fKiB" % (b / float(kb))
-        else:
-            return str(b)
-
     def __init__(self, name, config_options):
         Monitor.__init__(self, name, config_options)
         try:
             if 'maxage' in config_options:
                 maxage = int(config_options["maxage"])
                 self.maxage = maxage
-        except:
+        except Exception:
             raise RuntimeError("Maxage missing or not an integer (number of seconds)")
 
         try:
             if 'minsize' in config_options:
-                minsize = self._size_string_to_bytes(config_options["minsize"])
+                minsize = _size_string_to_bytes(config_options["minsize"])
                 self.minsize = minsize
-        except:
+        except Exception:
             raise RuntimeError("Minsize missing or not an integer (number of bytes")
 
         try:
             filename = config_options["filename"]
-        except:
+        except Exception:
             raise RuntimeError("Filename missing")
 
         self.filename = filename
@@ -391,7 +360,7 @@ class MonitorLoadAvg(Monitor):
         if 'which' in config_options:
             try:
                 which = int(config_options["which"])
-            except:
+            except Exception:
                 raise RuntimeError("value of 'which' is not an int")
             if which < 0:
                 raise RuntimeError("value of 'which' is too low")
@@ -401,7 +370,7 @@ class MonitorLoadAvg(Monitor):
         if 'max' in config_options:
             try:
                 max = float(config_options["max"])
-            except:
+            except Exception:
                 raise RuntimeError("value of 'max' is not a float")
             if max <= 0:
                 raise RuntimeError("value of 'max' is too low")
@@ -445,7 +414,7 @@ class MonitorZap(Monitor):
         if 'span' in config_options:
             try:
                 self.span = int(config_options["span"])
-            except:
+            except Exception:
                 raise RuntimeError("span parameter must be an integer")
             if self.span < 1:
                 raise RuntimeError("span parameter must be > 0")
@@ -510,7 +479,7 @@ class MonitorCommand(Monitor):
 
         try:
             command = shlex.split(config_options["command"])
-        except:
+        except Exception:
             raise RuntimeError("Required configuration fields missing or invalid")
         if command is None or len(command) == 0:
             raise RuntimeError("missing command")
